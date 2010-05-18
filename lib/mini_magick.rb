@@ -112,7 +112,7 @@ module MiniMagick
     # 1st argument is another Image, further options are passed to the composite command
     def composite(image, opts = {})
       image_path = image.is_a?(Image) ? image.path : image
-      args = hash_to_args(opts) + [@path, image_path, @path]
+      args = hash_to_args(opts) + [image_path, @path, @path]
       run_command('composite', *args)
       self
     end
