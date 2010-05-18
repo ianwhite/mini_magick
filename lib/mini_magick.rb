@@ -16,7 +16,7 @@ module MiniMagick
     # Class Methods
     # -------------
     class << self
-      def from_blob(blob, ext = nil)
+      def from_blob(blob, ext = nil, &block)
         begin
           tempfile = ImageTempFile.new(ext)
           tempfile.binmode
@@ -25,24 +25,32 @@ module MiniMagick
           tempfile.close if tempfile
         end
 
-        return self.new(tempfile.path, tempfile)
+        return self.new(tempfile.path, tempfile, &block)
       end
 
       # Use this if you don't want to overwrite the image file
-      def open(image_path)
+      def open(image_path, &block)
         File.open(image_path, "rb") do |f|
-          self.from_blob(f.read, File.extname(image_path))
+          self.from_blob(f.read, File.extname(image_path), &block)
         end
       end
       alias_method :from_file, :open
+      
+      def blank(size = "1x1", colour = "none", ext = "png")
+        from_blob("", ext) do |image|
+          image.blank size, colour
+        end
+      end
     end
 
     # Instance Methods
     # ----------------
-    def initialize(input_path, tempfile=nil)
+    def initialize(input_path, tempfile=nil, &block)
       @path = input_path
       @tempfile = tempfile # ensures that the tempfile will stick around until this image is garbage collected.
 
+      yield(self) if block_given?
+      
       # Ensure that the file is an image
       run_command("identify", @path)
     end
@@ -100,6 +108,30 @@ module MiniMagick
       end
     end
 
+    # return a composite image with the passed image laid over
+    # 1st argument is another Image, further options are passed to the composite command
+    def composite(image, opts = {})
+      image_path = image.is_a?(Image) ? image.path : image
+      args = hash_to_args(opts) + [@path, image_path, @path]
+      run_command('composite', *args)
+      self
+    end
+    
+    # colour the image with the passed image as a colour lookup table
+    def clut(image, opts = {})
+      image_path = image.is_a?(Image) ? image.path : image
+      args = ['-clut'] + hash_to_args(opts) + [@path, image_path, @path]
+      run_command('convert', *args)
+      self
+    end
+    
+    # overwrite the image with a blank canvas
+    def blank(size, colour, opts = {})
+      args = ['-size', size, "xc:#{colour}"] + hash_to_args(opts) + [@path]
+      run_command('convert', *args)
+      self
+    end
+    
     # Writes the temporary image that we are using for processing to the output path
     def write(output_path)
       FileUtils.copy_file @path, output_path
@@ -139,7 +171,7 @@ module MiniMagick
     def format_option(format)
       windows? ? "#{format}\\n" : "#{format}\\\\n"
     end
-
+  
     def run_command(command, *args)
       args.collect! do |arg|        
         # args can contain characters like '>' so we must escape them, but don't quote switches
@@ -149,15 +181,19 @@ module MiniMagick
           arg.to_s
         end
       end
-
+    
       command = "#{command} #{args.join(' ')}"
       output = `#{command} 2>&1`
-
+    
       if $?.exitstatus != 0
         raise MiniMagickError, "ImageMagick command (#{command.inspect}) failed: #{{:status_code => $?, :output => output}.inspect}"
       else
         output
       end
+    end
+    
+    def hash_to_args(opts)
+      opts.map {|k,v| "-#{k.to_s} #{v.to_s}"}
     end
   end
 

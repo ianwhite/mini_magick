@@ -24,10 +24,31 @@ class ImageTest < Test::Unit::TestCase
     image = Image.from_file(SIMPLE_IMAGE_PATH)
   end
 
+  def test_blank_image
+    image = Image.blank
+    assert_equal 1, image[:width]
+    assert_equal 1, image[:height]
+  end
+  
+  def test_blank_image_with_size_colour_and_ext
+    image = Image.blank '15x25', 'red', 'gif'
+    assert_equal 15, image[:width]
+    assert_equal 25, image[:height]
+    assert_match(/^gif$/i, image[:format])
+  end
+    
   def test_image_new
     image = Image.new(SIMPLE_IMAGE_PATH)
   end
 
+  def test_image_new_with_block
+    image = Image.from_file(SIMPLE_IMAGE_PATH) do |f|
+      f.resize "15x25!"
+    end
+    assert_equal 15, image[:width]
+    assert_equal 25, image[:height]
+  end
+  
   def test_image_write
     output_path = "output.gif"
     begin
@@ -116,6 +137,55 @@ class ImageTest < Test::Unit::TestCase
     end
   end
 
+  def test_composite_with_image
+    image = Image.from_file(SIMPLE_IMAGE_PATH)
+    assert_nothing_raised do
+      image.composite Image.from_file(SIMPLE_IMAGE_PATH)
+    end
+  end
+
+  def test_composite_with_image
+    image = Image.from_file(SIMPLE_IMAGE_PATH)
+    assert_nothing_raised do
+      image.composite Image.from_file(SIMPLE_IMAGE_PATH)
+    end
+  end
+  
+  def test_composite_with_path
+    image = Image.from_file(SIMPLE_IMAGE_PATH)
+    assert_nothing_raised do
+      image.composite SIMPLE_IMAGE_PATH
+    end
+  end
+  
+  def test_composite_with_image_and_args
+    image = Image.from_file(SIMPLE_IMAGE_PATH)
+    assert_nothing_raised do
+      image.composite Image.from_file(SIMPLE_IMAGE_PATH), :gravity => "northwest", :geometry => "+10+10"
+    end
+  end
+  
+  def test_clut_with_image
+    image = Image.from_file(SIMPLE_IMAGE_PATH)
+    assert_nothing_raised do
+      image.clut Image.from_file(SIMPLE_IMAGE_PATH)
+    end
+  end
+  
+  def test_clut_with_path
+    image = Image.from_file(SIMPLE_IMAGE_PATH)
+    assert_nothing_raised do
+      image.clut SIMPLE_IMAGE_PATH
+    end
+  end
+  
+  def test_blank
+    image = Image.from_file(SIMPLE_IMAGE_PATH)
+    image.blank "100x200", "white"
+    assert_equal 100, image[:width]
+    assert_equal 200, image[:height]
+  end
+  
   def test_exif
     image = Image.from_file(EXIF_IMAGE_PATH)
     assert_equal('0220', image["exif:ExifVersion"])
