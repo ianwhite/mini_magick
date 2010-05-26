@@ -89,23 +89,29 @@ module MiniMagick
     # pages (starting with 0).  You can choose which page you want to manipulate.  We default to the
     # first page.
     def format(format, page=0)
-      run_command("mogrify", "-format", format, @path)
-
       old_path = @path.dup
-      @path.sub!(/(\.\w+)?$/, ".#{format}")
-      File.delete(old_path) unless old_path == @path
-
+      @path = "#{@path}.#{format}"
+      run_command("convert", "-format", format, old_path, @path)
+      File.delete(old_path)
+    
+      # convert the paged file if necessary
       unless File.exists?(@path)
-        begin
-          FileUtils.copy_file(@path.sub(".#{format}", "-#{page}.#{format}"), @path)
-        rescue e
-          raise MiniMagickError, "Unable to format to #{format}; #{e}" unless File.exist?(@path)
-        end
+        paged_path = "#{old_path}-#{page}.#{format}"
+        FileUtils.copy_file(paged_path, @path) if File.exists?(paged_path)
       end
+      raise MiniMagickError, "Unable to format to #{format}" unless File.exists?(@path)
+
+      # move to new tempfile
+      if @tempfile
+        @tempfile.close!
+        @tempfile = ImageTempFile.new(format)
+        FileUtils.mv @path, @tempfile.path
+        @path = @tempfile.path
+      end
+      
+      self
     ensure
-      Dir[@path.sub(/(\.\w+)?$/, "-[0-9]*.#{format}")].each do |fname|
-        File.unlink(fname)
-      end
+      Dir["#{old_path}-[0-9]*.#{format}"].each {|fname| File.unlink(fname) } # cleanup paged paths
     end
 
     # return a composite image with the passed image laid over
